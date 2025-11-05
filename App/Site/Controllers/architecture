@@ -1,0 +1,14 @@
+/app
+ ├── /Controllers
+        └── ProjectController.php
+        └── ProjectController.php
+        └── ProjectController.php
+        └── DashboardController.php
+ ├── /Models
+ │     └── Project.php
+ ├── /Views
+ │     └── /modules/projects
+ │            ├── list.php
+ │            └── form.php
+ ├── /public
+ │     └── /js/modules/project.js

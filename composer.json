@@ -1,0 +1,19 @@
+{
+    "autoload": {
+        "psr-4": {
+            "Admin\\":"App/Admin",
+            "Core\\": "Core/",
+            "Config\\": "config/",
+            "Database\\": "Database/",
+            "Router\\":"Router/",
+            "Site\\":"App/Site",
+            "Utils\\": "Utils/",
+            "Validators\\":"Validators"
+
+        }
+    },
+    "require": {
+        "ipinfo/ipinfo": "^3.1",
+        "phpmailer/phpmailer": "*"
+    }
+}

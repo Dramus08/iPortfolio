@@ -1,0 +1,6 @@
+/Core
+ ├── AbstractDatabase.php
+ ├── MysqlDatabase.php
+ ├── SQLiteDatabase.php
+ ├── DatabaseFactory.php
+ └── Logger.php
