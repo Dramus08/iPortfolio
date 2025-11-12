@@ -83,6 +83,12 @@ class MysqlDatabase extends AbstractDatabase
         return $this->connection;
     }
 
+    public static function getPDO(): PDO
+    {
+        $instance=self::$instance;
+        return $instance->connection;
+    }
+
     public function getTableName(): ?string
     {
         return $this->tableName;
@@ -115,7 +121,7 @@ class MysqlDatabase extends AbstractDatabase
             $this->setResponse(true, "Requête préparée avec succès.");
             return true;
         } catch (PDOException $e) {
-            $this->handlePDOError($e, $sql);
+            //$this->handlePDOError($e, $sql);
             return false;
         }
     }
@@ -136,7 +142,7 @@ class MysqlDatabase extends AbstractDatabase
             return true;
 
         } catch (PDOException $e) {
-            $this->handlePDOError($e, $sql, $params);
+            //$this->handlePDOError($e, $sql, $params);
             $this->logger?->logError("❌ Erreur d'exécution SQL : " . $e->getMessage());
             return false;
         }
@@ -151,12 +157,12 @@ class MysqlDatabase extends AbstractDatabase
             $stmt->execute($params);
             $results = $single ? $stmt->fetch(PDO::FETCH_ASSOC) : $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            //$this->logger?->logInfo("✅ Données récupérées avec succès : [$sql]");
+            $this->logger?->logInfo("✅ Données récupérées avec succès : [$sql]");
             $this->setResponse(true, "Données récupérées avec succès.", $results);
             return true;
 
         } catch (PDOException $e) {
-            $this->handlePDOError($e, $sql, $params);
+            //$this->handlePDOError($e, $sql, $params);
             $this->logger?->logError("❌ Erreur de récupération SQL : " . $e->getMessage());
             return false;
         }
@@ -245,15 +251,18 @@ class MysqlDatabase extends AbstractDatabase
             $instance->getColumnsInfoTable($table),
             self::getFilteredData($table, $data)
         );
+        //var_dump($instance->validate);
 
         $instance->validate->setTable($table);
 
         try {
             if (!$instance->isTableExist($table)) {
+                //echo "La table '{$table}' n'existe pas.";
                 throw new Exception("La table '{$table}' n'existe pas.");
             }
 
             $filtered = $instance->validate->validate();
+            //var_dump($instance->validate->getErrors());
 
             if ($instance->validate->isValidData()) {
                 $sql = $instance->sqlCreate($table, $filtered);
@@ -263,7 +272,7 @@ class MysqlDatabase extends AbstractDatabase
             return false;
 
         } catch (Exception $e) {
-            echo $e->getMessage();
+            //echo $e->getMessage();
             return false;
         }
     }
@@ -271,12 +280,13 @@ class MysqlDatabase extends AbstractDatabase
     public static function update(string $table, int|string $id, array $data, array $files = []): bool
     {
         $instance = self::getInstance();
+        //var_dump($instance);
         $instance->validate = new DataValidator(
             $instance->getColumnsInfoTable($table),
             self::getFilteredData($table, $data),
             $id
         );
-
+        //var_dump($instance->validate);
         $instance->validate->setTable($table);
 
         try {
@@ -294,7 +304,7 @@ class MysqlDatabase extends AbstractDatabase
             return false;
 
         } catch (Exception $e) {
-            echo "[[ ERREUR ]] : " . $e->getMessage();
+            //echo "[[ ERREUR ]] : " . $e->getMessage();
             return false;
         }
     }
@@ -303,6 +313,13 @@ class MysqlDatabase extends AbstractDatabase
     {
         $sql = "DELETE FROM {$table} WHERE {$this->primaryKey} = :id";
         return $this->execute($sql, ['id' => $id]);
+    }
+
+    public static function del(string $table, int|string $id): bool
+    {
+        $instance=self::getInstance();
+        $sql = "DELETE FROM {$table} WHERE {$instance->primaryKey} = :id";
+        return $instance->execute($sql, ['id' => $id]);
     }
 
     protected function sqlCreate(string $table, array $data): string
@@ -344,4 +361,7 @@ class MysqlDatabase extends AbstractDatabase
     {
         return array_map(fn($r) => $this->hydrate($r), $rows);
     }
+
+
+
 }

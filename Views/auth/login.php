@@ -8,6 +8,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Font Awesome pour les icônes -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="<?=ASSETS."css/toast.css";?>">
 
 </head>
 <body>
@@ -230,59 +231,7 @@
         }
 </style>
 
-<style>
-    /* --- Flash Messages classiques --- */
-    .flash-message {
-      padding: 12px 16px;
-      border-radius: 6px;
-      margin: 10px 0;
-      color: #fff;
-      font-weight: 500;
-      animation: fadeIn 0.4s ease;
-    }
-    .flash-success { background-color: #28a745; }
-    .flash-error { background-color: #dc3545; }
-    .flash-warning { background-color: #ffc107; color: #222; }
-    .flash-info { background-color: #17a2b8; }
 
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(-10px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    /* --- Toasts --- */
-    #toast-container {
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      z-index: 9999;
-    }
-
-    .toast {
-      background-color: #333;
-      color: #fff;
-      padding: 12px 18px;
-      border-radius: 8px;
-      margin-top: 10px;
-      opacity: 0;
-      transform: translateY(-20px);
-      transition: opacity 0.5s ease, transform 0.5s ease;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-    }
-
-    .toast-success { background: #28a745; }
-    .toast-error { background: #dc3545; }
-    .toast-warning { background: #ffc107; color: #222; }
-    .toast-info { background: #17a2b8; }
-
-    .toast.show {
-      opacity: 1;
-      transform: translateY(0);
-    }
-</style>
-
-
-<?php //$_SESSION['flash'] ;?>
 
     <!-- Alertes flottantes -->
     <?php //$this->displayToastMessages(); ?>
@@ -291,6 +240,7 @@
 
     <!-- Conteneur principal -->
     <div class="container">
+        <?php // echo $_SESSION['csrf_token'] ; ?>
         <!-- Page de connexion -->
         <div id="login-page" class="auth-container">
             <div class="auth-header">
@@ -322,7 +272,7 @@
                     <div class="mb-3 form-check">
                         <input type="checkbox" class="form-check-input" id="remember-me">
                         <label class="form-check-label" for="remember-me">Se souvenir de moi</label>
-                        <a href="#" class="float-end">Mot de passe oublié?</a>
+                        <a href="<?=$Router::route('forgot_password');?>" class="float-end">Mot de passe oublié?</a>
                     </div>
                     <button type="submit" class="btn btn-primary w-100 mb-3">Se connecter</button>
                 </form>
@@ -351,6 +301,8 @@
     </div>
     <!-- Bootstrap JS avec Popper -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="<?=ASSETS."js/toast.js";?>"></script>
+
     
     <script>
         // Éléments DOM
@@ -418,7 +370,7 @@
                 if (timeLeft <= 0) {
                     clearInterval(countdownInterval);
                     countdownElement.textContent = '00:00';
-                    showAlert('Le lien de confirmation a expiré. Veuillez en demander un nouveau.', 'warning');
+                    showToast('danger','Le lien de confirmation a expiré. Veuillez en demander un nouveau.', 'warning');
                 } else {
                     timeLeft--;
                 }
@@ -441,106 +393,8 @@
             });
         });
         
-        // Validation de la force du mot de passe
-        const passwordInput = document.getElementById('register-password');
-        const passwordStrength = document.getElementById('password-strength');
-        
-        passwordInput.addEventListener('input', function() {
-            const password = this.value;
-            let strength = 0;
-            
-            // Longueur minimale
-            if (password.length >= 8) strength++;
-            
-            // Contient des lettres minuscules et majuscules
-            if (/[a-z]/.test(password) && /[A-Z]/.test(password)) strength++;
-            
-            // Contient des chiffres
-            if (/[0-9]/.test(password)) strength++;
-            
-            // Contient des caractères spéciaux
-            if (/[^A-Za-z0-9]/.test(password)) strength++;
-            
-            // Mise à jour de l'affichage de la force
-            passwordStrength.className = `password-strength strength-${strength} mt-2`;
-        });
-        
 
-        function showToast(type, message, time = 5000) {
-            // Créer ou récupérer le conteneur de toast
-            const toastContainer = document.getElementById('toastContainer') || createToastContainer();
-            
-            // Créer un nouveau toast à chaque fois plutôt que de réutiliser le même
-            const toastId = 'toast-' + Date.now();
-            const toast = document.createElement('div');
-            toast.id = toastId;
-            toast.className = 'toast fade show';
-            toast.setAttribute('role', 'alert');
-            toast.setAttribute('aria-live', 'assertive');
-            toast.setAttribute('aria-atomic', 'true');
-            
-            // Déterminer l'icône et le titre en fonction du type
-            const typeConfig = {
-                success: { icon: 'check-circle', title: 'Succès' },
-                danger: { icon: 'exclamation-triangle', title: 'Erreur' },
-                error: { icon: 'exclamation-triangle', title: 'Erreur' },
-                warning: { icon: 'exclamation-circle', title: 'Avertissement' },
-                info: { icon: 'info-circle', title: 'Information' }
-            };
-            
-            const config = typeConfig[type] || typeConfig.info;
-            
-            // Construire le contenu du toast
-            toast.innerHTML = `
-                <div class="toast-header">
-                    <strong class="me-auto text-${type}"><i class="bi bi-${config.icon} mx-1"></i>${config.title}</strong>
-                    <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
-                </div>
-                <div class="toast-body bg-${type} text-white rounded p-2 mb-2 shadow">
-                    ${message}
-                </div>
-            `;
-            
-            // Ajouter le toast au conteneur
-            toastContainer.appendChild(toast);
-            
-            // Gérer la fermeture automatique
-            const closeToast = () => {
-                toast.classList.remove('show');
-                setTimeout(() => {
-                    if (toast.parentNode) {
-                        toast.parentNode.removeChild(toast);
-                    }
-                }, 300);
-            };
-            
-            // Fermeture automatique après le délai
-            const timeoutId = setTimeout(closeToast, time);
-            
-            // Gérer la fermeture manuelle
-            const closeButton = toast.querySelector('.btn-close');
-            if (closeButton) {
-                closeButton.addEventListener('click', () => {
-                    clearTimeout(timeoutId);
-                    closeToast();
-                });
-            }
-            
-            // Activer le toast avec Bootstrap si disponible
-            if (typeof bootstrap !== 'undefined' && bootstrap.Toast) {
-                new bootstrap.Toast(toast).show();
-            }
-        }
-
-        function createToastContainer() {
-            const container = document.createElement('div');
-            container.id = 'toastContainer';
-            container.className = 'toast-container position-fixed bottom-0 end-0 p-3';
-            container.style.zIndex = '1100';
-            document.body.appendChild(container);
-            return container;
-        }
-    </script>
+      </script>
 </body>
 </html>
 

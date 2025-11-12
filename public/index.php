@@ -43,7 +43,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$csrf->verifyToken($token)) {
     $router = new Router($_GET['url'] ?? '/');
 
     // Exemple routes User
-    $router->get('/', 'Site\Controllers\HomeController@index','index');
+    $router->get('/', 'Admin\Controllers\HomeController@index','index');
+    $router->get('/home', 'Admin\Controllers\HomeController@home','home');
+
+    /* Les Differents urls pour la gestion des utilisateurs  */ 
+
     $router->get('/users', 'Admin\Controllers\UserController@index', 'user_list');
     $router->get('/users/create', 'Admin\Controllers\UserController@create','user_create');
     $router->post('/users/create', 'Admin\Controllers\UserController@create');
@@ -51,22 +55,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$csrf->verifyToken($token)) {
     $router->post('/users/edit/:id', 'Admin\Controllers\UserController@edit');
     $router->get('/users/show/:id', 'Admin\Controllers\UserController@show','user_show');
     $router->get('/users/delete/:id', 'Admin\Controllers\UserController@delete',"user_delete");
-    $router->get('/users/reset-password/:id', 'Admin\\Controllers\\UserController@resetPassword', 'user_reset');
-    $router->get('/users/activate/:id', 'Admin\\Controllers\\UserController@activate', 'user_activate');
-    $router->get('/users/deactivate/:id', 'Admin\\Controllers\\UserController@deactivate', 'user_deactivate');
+    $router->get('/users/:id/reset-password/', 'Admin\\Controllers\\UserController@resetPassword', 'user_reset');
+    $router->get('/users/:id/activate/', 'Admin\\Controllers\\UserController@activate', 'user_activate');
+    $router->get('/users/:id/deactivate/', 'Admin\\Controllers\\UserController@deactivate', 'user_deactivate');
     $router->get('/users/search', 'Admin\\Controllers\\UserController@search', 'user_search');
+
+
+
+
+
+    /* Les Differents urls pour authentification et gestion du profile  */ 
+    
     $router->get('/auth/login', 'Admin\\Controllers\\AuthController@login','login');
     $router->post('/auth/login', 'Admin\\Controllers\\AuthController@login');
 
     $router->get('/auth/register', 'Admin\\Controllers\\AuthController@register','register');
     $router->post('/auth/register', 'Admin\\Controllers\\AuthController@register');
-    $router->get('/auth/profile/:id', 'Admin\\Controllers\\AuthController@profile','profile_user');
-
+    $router->get('/auth/:slug/profile/', 'Admin\\Controllers\\AuthProfileController@profile','auth_profile');
+    $router->get('/auth/profile/:slug/edit', 'Admin\\Controllers\\AuthProfileController@profile_edit','auth_profile_edit');
+    $router->get('/auth/profile/:slug/create', 'Admin\\Controllers\\AuthProfileController@profile_create','auth_profile_create');
+    $router->get('/auth/forgot-password', 'Admin\\Controllers\\AuthController@forgotPassword','forgot_password');
+    $router->get('/auth/:slug/waiting-password-reset', 'Admin\\Controllers\\AuthController@WaitingPasswordReset','waiting_password_reset');
+    $router->post('/auth/forgot-password', 'Admin\\Controllers\\AuthController@forgotPassword','forgot_password');
     $router->get('/auth/logout', 'Admin\\Controllers\\AuthController@logout','logout');
-    $router->get('/auth/waiting-confirmation/:id', 'Admin\\Controllers\\AuthController@waitingConfirmation','waiting_confirmation_mail');
-    $router->get('/auth/confirm-email', 'Admin\\Controllers\\AuthController@confirmEmail', 'confirm_email');
-    $router->post('/auth/change-email/:id', 'Admin\\Controllers\\AuthController@changeEmail', 'change_email');
-    $router->post('/auth/resend-token/:id', 'Admin\\Controllers\\AuthController@resendToken', 'resend_token');
+    $router->get('/auth/:slug/waiting-confirmation/', 'Admin\\Controllers\\AuthController@waitingConfirmation','waiting_confirmation_mail');
+    $router->get('/auth/:slug/confirm-email/', 'Admin\\Controllers\\AuthController@confirmEmail', 'confirm_email');
+    $router->post('/auth/:slug/change-email/', 'Admin\\Controllers\\AuthController@changeEmail', 'change_email');
+    $router->get('/auth/:slug/change-email/', 'Admin\\Controllers\\AuthController@changeEmail', 'change_email');
+
+    $router->post('/auth/:slug/resend-token/', 'Admin\\Controllers\\AuthController@resendToken', 'resend_token');
+    $router->post('/auth/:slug/change-password', 'Admin\\Controllers\\AuthController@changePassword');
+
+    $router->get('/auth/:slug/change-password/', 'Admin\\Controllers\\AuthController@showChangePasswordForm', 'change_password');
+
+    
+    $router->get('/auth/:slug/waiting-password-reset', 'Admin\\Controllers\\AuthController@WaitingPasswordReset','waiting_password_reset');
+    $router->get('/auth/:slug/reset-default-password', 'Admin\\Controllers\\AuthController@resetDefaultPassword','reset_default_password');
+    $router->post('/auth/:slug/reset-default-password', 'Admin\\Controllers\\AuthController@resetDefaultPassword','reset_default_password');
+
+
+    $router->post('/auth/:token/resend-token/', 'Admin\\Controllers\\AuthController@resendTokenResetPassword', 'resend_token_reset_password');
+
+    $router->post('/auth/:token/change-password', 'Admin\\Controllers\\AuthController@changePasswordByTokenEmail','change_password_by_token_email');
+
+    $router->get('/auth/:token/change-password', 'Admin\\Controllers\\AuthController@changePasswordByTokenEmail','change_password_by_token_email');
+
+    $router->get('/auth/:token/confirm-email-reset-password/', 'Admin\\Controllers\\AuthController@confirmEmailResetPassword', 'confirm_email_reset_password');
+
+    $router->get('/auth/:token/waiting-confirmation-reset-password', 'Admin\\Controllers\\AuthController@waitingConfirmationResetPassword','waiting_confirmation_mail_reset_password');
+
+
+
+
 
 
     // Les liens de mon site
@@ -84,7 +124,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$csrf->verifyToken($token)) {
 
 
     // les differesnts des liens des dashboard
-    $router->get('/dashboard', 'Admin\\Controllers\\DashboardController@index','dashboard_admin');
+    $router->get('/dashboard', 'Admin\\Controllers\\DashboardController@home','dashboard_admin');
 
     // CRUD des projets
     $router->get('/projects', 'Site\\Controllers\\ProjectController@index','dashboard_project_list');

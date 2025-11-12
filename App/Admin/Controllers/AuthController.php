@@ -3,15 +3,31 @@ namespace Admin\Controllers;
 
 use Core\Controller;
 use Admin\Models\Auth;
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\Exception;
+use Generator;
+use Router\Route;
 use Router\Router;
+use Core\Mailer;
 
 class AuthController extends Controller
 {
+    protected ?string $layout = 'layout-auth'; // layout par défaut
+    protected array $noLayoutViews = ["auth.change_password","auth.change_email","auth.change_phone","auth.reset_password",'auth.profile'];
     /**
      * Connexion utilisateur
      */
+
+    protected function initSession(array $user){
+        // Authentification réussie
+        $_SESSION['auth'] = true;
+        $_SESSION['is_super_admin'] = $user['is_super_admin'];
+        $_SESSION['is_staff'] = $user['is_staff'];
+        $_SESSION['user'] = $user;
+        $_SESSION['user_id'] = $user['id'];
+        $_SESSION['role'] = $user['role'];
+        foreach ($user as $key => $value) {
+            $_SESSION[$key] = $value;
+        }
+    }
     public function login()
     {
         $this->verifyCSRF();
@@ -22,30 +38,21 @@ class AuthController extends Controller
             try {
                 $identifier = trim($_POST['email'] ?? $_POST['username'] ?? '');
                 $password = $_POST['password'] ?? '';
-
+                
                 $user = $auth->login($identifier, $password);
-
                 if (!$user) {
                     $this->flash('error', "Identifiants incorrects.");
                     $this->redirect(Router::route('login'));
-                    //exit();
                 }
-
+                $this->initSession($user);
                 if (!$user['email_confirmed']) {
                     $_SESSION['pending_user'] = $user;
                     $this->flash('info', 'Veuillez confirmer votre e-mail avant connexion.');
-                    $this->redirect(Router::route('waiting_confirmation_mail',['id' => $user['id']]));
+                    $this->redirect(Router::route('waiting_confirmation_mail',['slug' => $user['slug']]));
                 }
 
-                // Authentification réussie
-                $_SESSION['auth'] = true;
-                $_SESSION['is_super_admin'] = true;
-                $_SESSION['is_staff'] = true;
-                $_SESSION['user'] = $user;
-                $_SESSION['role'] = $user['role'];
-
                 $this->flash('success', 'Bienvenue ' . htmlspecialchars($user['name']) . ' 🎉');
-                $this->redirect(Router::route('index'));
+                $this->redirect(Router::route('home'));
             } catch (\Exception $e) {
                 $this->flash('error', $e->getMessage());
                 $this->redirect(Router::route('login'));
@@ -63,36 +70,38 @@ class AuthController extends Controller
         $this->verifyCSRF();
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            
+
+
             try {
 
                 $auth = new Auth();
-                $auth->register([
-                    'name' => $_POST['name'],
+                $success=$auth->register([
+                    'name' => isset($_POST['name']) ? $_POST['name']: '',
                     'username' => $_POST['username'],
                     'email' => $_POST['email'],
                     'password' => $_POST['password'],
-                    'phone' => $_POST['phone'] ?? '',
+                    'phone' => $_POST['phone'] ?? '' 
                 ]);
 
-                
+                if( $success ) {
                     // Récupère l'utilisateur pour le mail
-                $user = $auth->findByEmail($_POST['email']);
+                    //$user = $auth->findByEmail(htmlspecialchars($_POST['email']));
+                    $user=$auth->login(htmlspecialchars($_POST['email']),htmlspecialchars($_POST['password']));
             
-                if ($user && isset($user['confirmation_token'])) {
-                    //$confirmationLink = \Core\Router::route('confirm_email').'?token=' . $user['confirmation_token'];
-                    $l="localhost/iportfolio".'/auth/confirm-email';
-                    $confirmationLink=$l.'?token=' . $user['confirmation_token'];
-                    // Envoi du mail de confirmation
-                    //$this->sendConfirmationEmail($user['email'], $user['name'], $confirmationLink);
+                    if ($user && isset($user['confirmation_token']) && !empty($user)) {
+                        //$confirmationLink = \Core\Router::route('confirm_email').'?token=' . $user['confirmation_token'];
+                        $link=$this->getBaseUrl().'/auth/confirm-email';
+                        $confirmationLink=$link.'?token=' . $user['confirmation_token'];
+                        // Envoi du mail de confirmation
+                        if($this->checkInternetConnection()) $this->sendConfirmationEmail($user['email'], $user['name'], $confirmationLink);
+                        $this->initSession($user);
+                    }
+                    $this->responseSuccess( 'Compte créé ! Vérifiez votre e-mail pour le confirmer.',Router::route('waiting_confirmation_mail',['slug'=>$user['slug']]));
                 }
-                $this->flash('success', 'Compte créé ! Vérifiez votre e-mail pour le confirmer.');
                 
-                $this->redirect(Router::route('waiting_confirmation_mail',['id'=>$user['id']]));
                 
             } catch (\Exception $e) {
-                $this->flash('error', $e->getMessage());
-                $this->redirect(Router::route('register'));
+                return $this->responseError("ERREUR : ".$e->getMessage(), Router::route('register'));
             }
         }
 
@@ -105,21 +114,22 @@ class AuthController extends Controller
     public function confirmEmail()
     {
         if (!isset($_GET['token'])) {
-            $this->flash('error', 'Lien de confirmation invalide.');
-            $this->redirect(Router::route('login'));
+            return $this->responseError( 'Lien de confirmation invalide.',Router::route('login'));
         }
 
         $token = $_GET['token'];
         $auth = new Auth();
-
-        if ($auth->confirmEmail($token)) {
-            $this->flash('success', 'Votre e-mail a bien été confirmé ! Vous pouvez maintenant vous connecter.');
-            $this->redirect(Router::route('login'));
-        } else {
-            $this->flash('error', 'Lien invalide ou expiré. Veuillez vous réinscrire.');
-            $this->redirect(Router::route('register'));
+        $user=$auth->findByToken($_GET['token']);
+        if(isset($user) && !empty($user)) {
+            if ($auth->confirmEmail($token)) {
+                $this->responseSuccess( 'Votre e-mail a bien été confirmé ! Vous pouvez maintenant vous connecter.',Router::route('login'));
+            } else {
+                return $this->responseError( 'Lien invalide ou expiré. Veuillez vous réinscrire.',Router::route('register'));
+            }
         }
     }
+
+
 
     /**
      * Déconnexion
@@ -134,16 +144,28 @@ class AuthController extends Controller
     /**
      * Page d’attente après inscription
      */
-    public function waitingConfirmation(int|string $id=25)
+    public function waitingConfirmation(string $slug)
     {
-        $user = (new Auth())->find($id);
+       
+        $this->requireAuth();
+        $user = (new Auth())->findBySlug($slug);
         return $this->render('auth.waiting_confirmation',['user' => $user ,'csrf' => $this->csrfToken(),'Router' => Router::class]);
     }
 
-    public function profile(int $id)
+   
+
+    public function profile(string $slug)
     {
-        $user = (new Auth())->find($id);
-        return $this->render('auth.profile',['user' => $user ,'csrf' => $this->csrfToken(),'Router' => Router::class]);
+        $this->requireAuth();
+        $user = (new Auth())->findBySlug($slug);
+        return $this->render('auth.auth_profile',['user' => $user ,'csrf' => $this->csrfToken(),'Router' => Router::class]);
+    }
+
+       public function auth_profile(string $slug)
+    {
+        $this->requireAuth();
+        $user = (new Auth())->findBySlug($slug);
+        return $this->render('auth.auth_profile',['user' => $user ,'csrf' => $this->csrfToken(),'Router' => Router::class]);
     }
 
     /**
@@ -151,115 +173,405 @@ class AuthController extends Controller
      */
     private function sendConfirmationEmail(string $email, string $name, string $link): bool
     {
-        $mail = new PHPMailer(true);
+        $mail = new Mailer();
+        return $mail->sendConfirmationEmail($email, $name, $link);
 
-        try {
-            // Configuration SMTP
-            $mail->isSMTP();
-            $mail->Host = 'smtp.gmail.com';
-            $mail->SMTPAuth = true;
-            $mail->Username = 'inouaismailcoding@gmail.com';
-            $mail->Password = 'hcxcywbjbwkrncbu'; // mot de passe d’application
-            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-            $mail->Port = 587;
+    }
 
-            // Expéditeur et destinataire
-            $mail->setFrom('inouaismailcoding@gmail.com', 'IIcoding');
-            $mail->addAddress($email, $name);
-
-            // Contenu HTML
-            $mail->isHTML(true);
-            $mail->Subject = "Confirmez votre inscription sur MonSite";
-            $mail->Body = "
-                <h2>Bienvenue, {$name} 👋</h2>
-                <p>Merci de vous être inscrit sur <strong>MonSite</strong>.</p>
-                <p>Veuillez confirmer votre adresse e-mail en cliquant sur le lien ci-dessous :</p>
-                <p>
-                    <a href='{$link}' 
-                       style='display:inline-block;background:#4CAF50;color:white;
-                       padding:10px 15px;text-decoration:none;border-radius:5px;'>
-                       Confirmer mon compte
-                    </a>
-                </p>
-                <p>Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :</p>
-                <p>{$link}</p>
-                <p><small>Ce lien expirera dans 24 heures.</small></p>
-            ";
-
-            $mail->send();
-            return true;
-        } catch (Exception $e) {
-            error_log("Erreur envoi mail : " . $mail->ErrorInfo);
-            return false;
-        }
+    private function sendConfirmationMailResetPassword(string $email, string $name, string $link): bool
+    {
+        $mail = new Mailer();
+        return $mail->sendConfirmationEmail($email, $name, $link);
     }
 
     /**
  * ✅ Changement d’adresse e-mail + génération d’un nouveau token
  */
-public function changeEmail(int $id)
-{
-    //$this->verifyCSRF();
+    public function changeEmail(string $slug)
+    {
+        $url=$this->getBaseUrl();
 
-    $newEmail = trim($_POST['new_email'] ?? '');
-    if (!filter_var($newEmail, FILTER_VALIDATE_EMAIL)) {
-        $this->flash('error', "Adresse e-mail invalide.");
-        return $this->redirect(Router::route('waiting_confirmation_mail', ['id' => $id]));
+       if($_SERVER['REQUEST_METHOD'] == 'POST') {
+        $this->requireAuth();
+        $newEmail = trim($_POST['email'] ?? '');
+        if (!filter_var($newEmail, FILTER_VALIDATE_EMAIL)) {
+            return $this->responseError("Adresse e-mail invalide.",Router::route("change_email",['slug'=> $slug]));
+        }
+
+        $auth = new Auth();
+        $user = $auth->findBySlug($slug);
+        // Vérifie si utilisateur existe
+        if (!$user) {
+            return $this->responseError("Utilisateur introuvable.",Router::route("change_email",['slug'=> $slug]));
+        }
+
+        // Vérifie si l’email existe déjà
+        if ($auth->findByEmail($newEmail)) {
+            return $this->responseError("Cette adresse e-mail est déjà utilisée.",Router::route("change_email",['slug'=> $slug]));
+        }
+
+        // Met à jour l’adresse et régénère le token
+        $newToken = bin2hex(random_bytes(32));
+        $auth->updateEmailAndToken($user->id, $newEmail, $newToken);
+        $this->initSession((array)$user);
+        
+        // Renvoi de l’e-mail
+        $link = $this->getBaseUrl()."auth/".$slug."/confirm-email?token={$newToken}";
+        if($this->checkInternetConnection()) $this->sendConfirmationEmail($newEmail, $user->name, $link);
+
+        return $this->responseSuccess( "Nouvelle adresse enregistrée. Vérifiez vos e-mails.",Router::route('waiting_confirmation_mail', ['slug' => $slug]));
+       }
+       $this->render('auth.change_email',['user'=>$_SESSION['user'],"Router"=>Router::class,'baseUrl'=>$url]);
     }
 
-    $auth = new Auth();
-    $user = $auth->find($id);
+    /**
+     * ✅ Renvoi du token de confirmation (sans changer l’adresse)
+     */
+    public function resendToken(string $slug)
+    {
+        //$this->verifyCSRF();
+        $this->requireAuth();
 
-    if (!$user) {
-        $this->flash('error', "Utilisateur introuvable.");
-        return $this->redirect(Router::route('register'));
+        $auth = new Auth();
+        $user = $auth->findBySlug($slug);
+
+        if (!$user) {
+            return $this->responseError( "Utilisateur introuvable.",Router::route('register'));
+        }
+
+        $newToken = bin2hex(random_bytes(32));
+        $auth->resetToken($user->id, $newToken);
+
+        $link = $this->getBaseUrl()."auth/".$user->slug."/confirm-email?token={$newToken}";
+        if($this->checkInternetConnection()) $this->sendConfirmationEmail($user->email, $user->name, $link);
+
+        return $this->responseSuccess( "Un nouveau lien de confirmation a été envoyé !",Router::route('waiting_confirmation_mail', ['slug' => $slug]));
     }
 
-    // Vérifie si l’email existe déjà
-    if ($auth->findByEmail($newEmail)) {
-        $this->flash('error', "Cette adresse e-mail est déjà utilisée.");
-        return $this->redirect(Router::route('waiting_confirmation_mail', ['id' => $id]));
-    }
+    
 
-    // Met à jour l’adresse et régénère le token
-    $newToken = bin2hex(random_bytes(32));
-    $auth->updateEmailAndToken($id, $newEmail, $newToken);
+    /**
+     * Affiche le formulaire de modification du mot de passe
+     */
 
-    // Renvoi de l’e-mail
-    $link = "http://localhost/iportfolio/confirm-email?token={$newToken}";
-    $this->sendConfirmationEmail($newEmail, $user->name, $link);
 
-    $this->flash('success', "Nouvelle adresse enregistrée. Vérifiez vos e-mails.");
-    $this->redirect(Router::route('waiting_confirmation_mail', ['id' => $id]));
-}
-
-/**
- * ✅ Renvoi du token de confirmation (sans changer l’adresse)
+    /**
+ * Vérifie si l'utilisateur connecté est bien le propriétaire du compte
  */
-public function resendToken(int $id)
-{
-    //$this->verifyCSRF();
-
-    $auth = new Auth();
-    $user = $auth->find($id);
-
-    if (!$user) {
-        $this->flash('error', "Utilisateur introuvable.");
-        return $this->redirect(Router::route('register'));
+    private function isOwner(int|string $userId): bool
+    {
+        $currentUser = (new Auth())->getCurrentUser();
+        
+        if (!$currentUser) {
+            return false;
+        }
+        
+        // Vérifier que l'ID du compte à modifier correspond à l'ID de l'utilisateur connecté
+        return (int)$currentUser->id === (int)$userId;
     }
 
-    $newToken = bin2hex(random_bytes(32));
-    $auth->resetToken($id, $newToken);
+    /**
+     * Valide les données de changement de mot de passe
+     */
+    private function validatePasswordChange(?string $currentPassword, ?string $newPassword, ?string $confirmPassword): array
+    {
+        $errors = [];
 
-    $link = "http://localhost/iportfolio/confirm-email?token={$newToken}";
-    $this->sendConfirmationEmail($user->email, $user->name, $link);
+        if (empty($currentPassword)) {
+            $errors[] = 'Le mot de passe actuel est requis.';
+        }
 
-    $this->flash('success', "Un nouveau lien de confirmation a été envoyé !");
-    $this->redirect(Router::route('waiting_confirmation_mail', ['id' => $id]));
+        if (empty($newPassword)) {
+            $errors[] = 'Le nouveau mot de passe est requis.';
+        } elseif (strlen($newPassword) < 8) {
+            $errors[] = 'Le mot de passe doit contenir au moins 8 caractères.';
+        } elseif (!preg_match('/[a-z]/', $newPassword)) {
+            $errors[] = 'Le mot de passe doit contenir au moins une lettre minuscule.';
+        } elseif (!preg_match('/[A-Z]/', $newPassword)) {
+            $errors[] = 'Le mot de passe doit contenir au moins une lettre majuscule.';
+        } elseif (!preg_match('/[0-9]/', $newPassword)) {
+            $errors[] = 'Le mot de passe doit contenir au moins un chiffre.';
+        } elseif (!preg_match('/[^A-Za-z0-9]/', $newPassword)) {
+            $errors[] = 'Le mot de passe doit contenir au moins un caractère spécial.';
+        }
+
+        if (empty($confirmPassword)) {
+            $errors[] = 'La confirmation du mot de passe est requise.';
+        } elseif ($newPassword !== $confirmPassword) {
+            $errors[] = 'Les mots de passe ne correspondent pas.';
+        }
+
+        return $errors;
+    }
+
+
+
+        public function showChangePasswordForm(string $slug)
+    {
+        // Vérifier que l'utilisateur est connecté
+            $this->requireAuth();
+            $user=(new Auth())->findBySlug($slug);
+        // Vérifier que l'utilisateur modifie son propre compte
+        if (!$this->isOwner($user->id)) {
+            return $this->responseError('Vous n\'êtes pas autorisé à modifier ce compte.',Router::route('index'));
+        }
+
+        $data = [
+            'title' => 'Modifier le mot de passe',
+            'user' => $user,
+            'csrf_token' => $this->csrfToken(),
+            'Router' => Router::class,
+        ];
+
+        $this->render('auth.change_password', $data);
+    }
+
+    /**
+     * Traite la modification du mot de passe
+     */
+    public function changePassword(string $slug)
+    {
+        // Vérifier que l'utilisateur est connecté
+        $this->requireAuth();
+        $user=(new Auth())->findBySlug($slug);
+
+        // Vérifier que l'utilisateur modifie son propre compte
+        if (!$this->isOwner($user->id)) {
+            return $this->responseError( 'Vous n\'êtes pas autorisé à modifier ce compte.',Router::route('user_profile',['slug'=> $slug]));
+            
+        }
+
+        // Valider le token CSRF
+        if (!$this->verifyCSRF()) {
+            return $this->responseError( 'Token de sécurité invalide.',Router::route('change_password',['slug'=> $slug]));
+            //Router::route('change_password',['slug'=> $slug]);
+            //return;
+        }
+        $currentPassword = htmlspecialchars($_POST['current_password']  ?? '');
+        $newPassword = htmlspecialchars($_POST['new_password'] ?? '');
+        $confirmPassword = htmlspecialchars($_POST['confirm_password'] ?? '');
+
+        // Validation des données
+        $errors = $this->validatePasswordChange($currentPassword, $newPassword, $confirmPassword);
+
+        if (!empty($errors)) {
+            foreach ($errors as $error) {
+                $this->flash('error', $error);
+            }
+            Router::redirect('change_password',['slug'=> $slug]);
+            return;
+        }
+
+        // Vérifier l'ancien mot de passe
+        if (!password_verify($currentPassword, $user->password)) {
+            return $this->responseError( 'Le mot de passe actuel est incorrect.',Router::route('change_password',['slug'=> $slug]));
+        }
+
+        // Vérifier que le nouveau mot de passe est différent de l'ancien
+        if (password_verify($newPassword, $user->password)) {
+            return $this->responseError( 'Le nouveau mot de passe doit être différent de l\'ancien.',Router::route('change_password',['slug'=> $slug]));
+        }
+
+        // Mettre à jour le mot de passe
+        try {
+            $userModel = new Auth();
+            $success = $userModel->updatePassword($user->id, $newPassword);
+
+            if ($success) {
+                // Déconnecter l'utilisateur de tous les appareils (optionnel)
+                // Auth::logoutOtherDevices($newPassword);
+                
+                $this->responseSuccess( 'Votre mot de passe a été mis à jour avec succès.',Router::route('user_profile',['slug'=> $slug]));
+            } else {
+                $this->responseError( 'Une erreur est survenue lors de la mise à jour du mot de passe.',Router::route('change_password',['slug'=> $slug]));
+            }
+        } catch (\Exception $e) {
+            return $this->responseError( 'Erreur technique: ' . $e->getMessage(),Router::route('change_password',['slug'=> $slug]));
+        }
+    }
+
+     /**
+     * Page pour recuperer son compte par Email
+     */
+    public function forgotPassword()
+    {
+        if($_SERVER['REQUEST_METHOD'] === 'POST'){
+
+            $email= htmlspecialchars($_POST['email']);
+            $auth   = new Auth();
+            $user=$auth->findByEmail($email);
+            
+            if ($user === null) {
+                return $this->responseError( 'Utilisateur Introuvable !',Router::route('forgot_password'));
+                
+            }
+            var_dump($user->confirmation_token);
+            return $this->resendTokenResetPassword( $user->confirmation_token );
+            
+            //$this->responseSuccess('veuillez consulter votre addresse mail et suivre le lien !',Router::route('waiting_password_reset',['slug'=>$user->slug]));
+
+            
+        }
+        return $this->render('auth.forgot_password',['csrf' => $this->csrfToken(),'Router' => Router::class]);
+
+        
+    }
+    
+    public function WaitingPasswordReset(string $slug){
+        $auth   = new Auth();
+        $user=$auth->findBySlug($slug);
+        return $this->render('auth.waiting_password_reset',['user'=>$user,"Router"=>Route::class]);
+    }
+    
+    public function resetDefaultPassword(string $slug){
+       $auth   = new Auth();
+        $user=$auth->findBySlug($slug);
+        
+
+        if($_SERVER['REQUEST_METHOD']==="POST"){
+            
+            $success=$auth->resetDefautPassword($user->id);
+            if($success) return $this->responseSuccess("Votre Mot de passe a ete reinitialiser par default !",Router::route("login"));
+            else return $this->responseError("Erreur lors du reinitialisation du mot de passe !",Router::route("waiting_password_reset",['slug'=>$slug]));
+            //
+        }
+        //return $this->render('auth.reset_default_password',['user'=>$user,"Router"=>Route::class]);
+    }
+
+        /**
+     * Page d’attente après inscription
+     */
+    public function waitingConfirmationResetPassword(string $token)
+    {
+       
+        $this->requireAuth();
+        $user = (new Auth())->findBySlug($token);
+        return $this->render('auth.waiting_confirmation_mail_reset_password',['user' => $user ,'csrf' => $this->csrfToken(),'Router' => Router::class]);
+    }
+
+        /**
+     * Confirmation de l’adresse e-mail via le lien pour reinitialiser le mot de passe
+     */
+    public function confirmEmailResetPassword()
+    {
+        var_dump($_GET);
+        if (!isset($_GET['token'])) {
+            return ;//$this->responseError( 'Lien de confirmation invalide.',Router::route('login'));
+        }
+
+        $token = $_GET['token'];
+        $auth = new Auth();
+        $user=$auth->findByToken($_GET['token']);
+        if(isset($user) && !empty($user)) {
+            if ($auth->confirmEmailResetPassword($token)) {
+                $this->responseSuccess( 'Votre mail a bien été confirmé ! changer votre mot de passe .',Router::route('change_password_by_token_email', ['token'=> $token]));
+            } else {
+                return $this->responseError( 'Lien invalide ou expiré. Veuillez vous réinscrire.',Router::route('resend_token_reset_password',['token'=> $token]));
+            }
+        }
+    }
+
+        /**
+     * ✅ Renvoi du token de confirmation (sans changer l’adresse)
+     */
+    public function resendTokenResetPassword(string $token)
+    {
+        //$this->verifyCSRF();
+        //$this->requireAuth();
+
+        $auth = new Auth();
+        $user = (object) $auth->findByToken($token);
+
+        if (!$user) {
+            return $this->responseError( "Utilisateur introuvable.",Router::route('register'));
+        }
+
+        $newToken = bin2hex(random_bytes(32));
+        $auth->resetTokenPassword($user->id, $newToken);
+
+        $link = $this->getBaseUrl()."auth/".$token."/confirm-email-reset-password?token={$newToken}";
+        if($this->checkInternetConnection()) $this->sendConfirmationMailResetPassword($user->email, $user->name, $link);
+
+        return $this->responseSuccess( "Un nouveau lien de confirmation a été envoyé !",Router::route('waiting_confirmation_mail_reset_password', ['token' => $token]));
+    }
+
+            /**
+     * Traite la modification du mot de passe
+     */
+        public function changePasswordByTokenEmail(string $token)
+    {
+        if($_SERVER['REQUEST_METHOD']==='POST'){
+
+       
+        
+        // Valider le token CSRF
+        if (!$this->verifyCSRF()) {
+            return $this->responseError( 'Token de sécurité invalide.',Router::route('change_password_by_token_email',['token'=> $token]));
+            //Router::route('change_password',['slug'=> $slug]);
+            //return;
+        }
+
+        // Vérifier que l'utilisateur existe
+        $user=(object) (new Auth())->findByToken($token);
+        if (!$user) {
+            return $this->responseError( 'Utilisateur Introuvable.',Router::route('login'));
+        }
+
+        $now = new \DateTime();
+        $expires = new \DateTime($user->token_expires_at);
+
+        if ($now > $expires) {
+            //return false; // Token expiré
+            $this->confirmEmailResetPassword();
+            return $this->responseError( 'Le Lien a expire.</br> Un nouveau  lien de confirmation a été envoyé veuillez consulter votre addresse de messagerie et suivre le lien !</br> le lien est valide pendant deux heures !',Router::route('waiting_confirmation_mail_reset_password', ['token'=> $token]));
+        }
+
+
+        $currentPassword = htmlspecialchars($_POST['current_password']  ?? '');
+        $newPassword = htmlspecialchars($_POST['new_password'] ?? '');
+        $confirmPassword = htmlspecialchars($_POST['confirm_password'] ?? '');
+
+        // Validation des données
+        $errors = $this->validatePasswordChange($currentPassword, $newPassword, $confirmPassword);
+
+        if (!empty($errors)) {
+            foreach ($errors as $error) {
+                $this->flash('error', $error);
+            }
+            Router::redirect('change_password_by_token_email',['token'=> $token]);
+            return;
+        }
+
+        // Vérifier l'ancien mot de passe
+        if (!password_verify($currentPassword, $user->password)) {
+            return $this->responseError( 'Le mot de passe actuel est incorrect.',Router::route('change_password_by_token_email',['token'=> $token]));
+        }
+
+        // Vérifier que le nouveau mot de passe est différent de l'ancien
+        if (password_verify($newPassword, $user->password)) {
+            return $this->responseError( 'Le nouveau mot de passe doit être différent de l\'ancien.',Router::route('change_password_by_token_email',['token'=> $token]));
+        }
+
+        // Mettre à jour le mot de passe
+        try {
+            $userModel = new Auth();
+            $success = $userModel->updatePassword($user->id, $newPassword);
+
+            if ($success) {
+                // Déconnecter l'utilisateur de tous les appareils (optionnel)
+                // Auth::logoutOtherDevices($newPassword);
+                
+                $this->responseSuccess( 'Votre mot de passe a été mis à jour avec succès. Veuillez vous connecter !',Router::route('login'));
+            } else {
+                $this->responseError( 'Une erreur est survenue lors de la mise à jour du mot de passe.',Router::route('change_password_by_token_email',['token'=> $token]));
+            }
+        } catch (\Exception $e) {
+            return $this->responseError( 'Erreur technique: ' . $e->getMessage(),Router::route('change_password_by_token_email',['token'=> $token]));
+        }
+        }
+        return $this->render('auth.change_password_by_token_email',['token'=>$user->confirmation_token ]);
+    }
+
+
+
 }
-
-
-}
-
-
-

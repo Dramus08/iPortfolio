@@ -37,9 +37,8 @@
                 </button>
                 <div>
                   
-                  <?php // echo "Project <b>".$project->id."</b></br>";  echo "<pre>";print_r($project); echo "</pre></br>";?>
                   <?php foreach ($project->tags as $tag): ?>
-                      <span style="background: <?= $tag->color ?>; color:#fff; padding:4px; border-radius:4px;">
+                      <span style="background: <?= $tag->color ?>; color:#fff; padding:5px; border-radius:4px;border-radius:8px;margin:4px;text-center;">
                           <?= htmlspecialchars($tag->name) ?>
                       </span>
                   <?php endforeach; ?>

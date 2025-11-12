@@ -14,6 +14,12 @@
     },
     "require": {
         "ipinfo/ipinfo": "^3.1",
-        "phpmailer/phpmailer": "*"
+        "phpmailer/phpmailer": "*",
+        "openai-php/client": "^0.18.0"
+    },
+    "config": {
+        "allow-plugins": {
+            "php-http/discovery": true
+        }
     }
 }

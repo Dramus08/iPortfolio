@@ -3,11 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Register</title>
+    <title>Register - Confirm Email</title>
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Font Awesome pour les icônes -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="<?=ASSETS."css/toast.css";?>">
+
 
 </head>
 <body>
@@ -120,7 +122,67 @@
         background-color: white;
         transition: all 0.3s;
     }
+        .step-indicator {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 25px;
+    }
     
+    .step {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 100px;
+    }
+    
+    .step-circle {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background-color: #e9ecef;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        margin-bottom: 8px;
+        color: #6c757d;
+    }
+    
+    .step.active .step-circle {
+        background-color: var(--primary-color);
+        color: white;
+    }
+    
+    .step.completed .step-circle {
+        background-color: var(--success-color);
+        color: white;
+    }
+    
+    .step-line {
+        flex-grow: 1;
+        height: 2px;
+        background-color: #e9ecef;
+        margin-top: 19px;
+    }
+    
+    .step:last-child .step-line {
+        display: none;
+    }
+    
+    .step.completed .step-line {
+        background-color: var(--success-color);
+    }
+    
+    .step-text {
+        font-size: 12px;
+        text-align: center;
+        color: #6c757d;
+    }
+    
+    .step.active .step-text {
+        color: var(--primary-color);
+        font-weight: 500;
+    }
     .social-btn:hover {
         transform: translateY(-3px);
         box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
@@ -229,107 +291,61 @@
     }
 </style>
 
-<style>
-    
-    /* --- Flash Messages classiques --- */
-    .flash-message {
-      padding: 12px 16px;
-      border-radius: 6px;
-      margin: 10px 0;
-      color: #fff;
-      font-weight: 500;
-      animation: fadeIn 0.4s ease;
-    }
-    .flash-success { background-color: #28a745; }
-    .flash-error { background-color: #dc3545; }
-    .flash-warning { background-color: #ffc107; color: #222; }
-    .flash-info { background-color: #17a2b8; }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(-10px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    /* --- Toasts --- */
-    #toast-container {
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      z-index: 9999;
-    }
-
-    .toast {
-      background-color: #333;
-      color: #fff;
-      padding: 12px 18px;
-      border-radius: 8px;
-      margin-top: 10px;
-      opacity: 0;
-      transform: translateY(-20px);
-      transition: opacity 0.5s ease, transform 0.5s ease;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-    }
-
-    .toast-success { background: #28a745; }
-    .toast-error { background: #dc3545; }
-    .toast-warning { background: #ffc107; color: #222; }
-    .toast-info { background: #17a2b8; }
-
-    .toast.show {
-      opacity: 1;
-      transform: translateY(0);
-    }
-
-    .email-form {
-  max-height: 0;
-  overflow: hidden;
-  opacity: 0;
-  transform: translateY(-5px);
-  transition: all 0.4s ease;
-    }
-
-    .email-form.active {
-    max-height: 500px; /* Ajuste selon la taille du contenu */
-    opacity: 1;
-    transform: translateY(0);
-    }
-</style>
-
+    <!-- Alertes flottantes -->
+    <?php //$this->displayToastMessages(); ?>
+    <?php $this->displayToastMessagesBootstrap(); ?>
   <!-- Conteneur principal -->
   <div class="container">
-
       <!-- Page d'attente de validation email -->
       <div id="validation-page" class="auth-container">
         <div class="validation-container">
             <div class="validation-icon">
-                <i class="fas fa-envelope-open-text"></i>
+                <i class="fas fa-envelope-open-text " ></i>
+            </div>
+            <!-- Indicateur d'étapes -->
+            <div class="step-indicator">
+                <div class="step completed">
+                    <div class="step-circle">
+                        <i class="fas fa-check"></i>
+                    </div>
+                    <div class="step-line"></div>
+                    <div class="step-text">Identification</div>
+                </div>
+                <div class="step completed">
+                    <div class="step-circle"><i class="fas fa-check"></i></div>
+                    <div class="step-line"></div>
+                    <div class="step-text">Email</div>
+                </div>
+                <div class="step active">
+                    <div class="step-circle">3</div>
+                    <div class="step-text">Confirmation</div>
+                </div>
             </div>
             <h3>Vérifiez votre email</h3>
             <p class="text-muted">Nous avons envoyé un lien de confirmation à <strong id="user-email"><?=$user->email ;?></strong></p>
             <p class="text-muted">Cliquez sur le lien dans l'email pour activer votre compte.</p>
-            <p><a href="<?=$Router::route('index');?>">Retour à l’accueil</a></p>
+            <p><a href="<?= isset($_SESSION['user']) &&  !$_SESSION['user']['email_confirmed'] ? $Router::route('index') :$Router::route('home');?>">Retour à l’accueil</a></p>
             <div class="progress mt-4 mb-4">
-                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 65%"></div>
+                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 85%"></div>
             </div>
             
             <p class="text-muted">Vous n'avez pas reçu l'email?</p>
-            <form method="POST" action="<?= $Router::route('resend_token', ['id' => $user->id]); ?>" style="display:inline-block;"> 
+            <form method="POST" action="<?= $Router::route('resend_token', ['slug' => $user->slug]); ?>" style="display:inline-block;"> 
             <input type="hidden" name="csrf" value="<?= $csrf;?>">
 
               <button type="submit" class="btn btn-outline-primary me-2" id="resend-email">Renvoyer le lien de confirmation</button>
             </form>
 
             <!-- Bouton de modification -->
-          <button class="btn btn-outline-secondary toggle-email-btn">
+          <a class="btn btn-outline-secondary toggle-email-btn" href="<?=$Router::route('change_email',['slug'=>$user->slug]);?>">
             Modifier mon adresse e-mail
-          </button>
+</a>
 
           <!-- Formulaire caché -->
-          <div id="change-email" class="email-form mt-3">
-            <form action="<?= $Router::route('change_email', ['id' => $user->id]) ?>" method="post">
+          <div id="change-email" class="email-form mt-3 d-none">
+            <form action="<?= $Router::route('change_email', ['slug' => $user->slug]) ?>" method="post">
               <input type="hidden" name="csrf" value="<?= $csrf;?>">
               <div class="mb-3">
-                <p>Ancienne Addresse Email: <b class="text-danger"><?=$user->email;?></b></p>
                 <input type="email" name="new_email" class="form-control" placeholder="Nouvelle adresse e-mail" required>
               </div>
               <button type="submit" class="btn btn-warning">Mettre à jour et renvoyer le lien</button>

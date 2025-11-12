@@ -3,6 +3,7 @@
 namespace Core;
 
 use Database\MYSQL_DB;
+use Database\DatabaseFactory;
 use Database\AbstractDatabase;
 use Router\Router;
 use Exception;
@@ -24,8 +25,9 @@ abstract class Controller
         /** @var string|null Nom du layout à utiliser */
         protected ?string $layout = 'layout'; // layout par défaut
 
+
         /** @var array Liste des vues sans layout global */
-        protected array $noLayoutViews = ['auth.login', 'auth.register','auth.waiting_confirmation'];
+        protected array $noLayoutViews = ['auth.login', 'auth.register','auth.waiting_confirmation','user.show','user.index','user.create','user.edit'];
 
         public function __construct(string|object $dbDriver = 'mysql')
     {
@@ -44,6 +46,17 @@ abstract class Controller
 
         // Génère un token CSRF si absent
         $this->initCSRFToken();
+    }
+
+        /**
+     * Envoie une réponse JSON standardisée avec le bon header
+     */
+    protected function toJson(array $data, int $statusCode = 200): void
+    {
+        http_response_code($statusCode);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+        exit;
     }
 
     /**
@@ -86,21 +99,27 @@ abstract class Controller
         return $this->db;
     }
 
-    /**
-     * Vérifie si l’utilisateur est connecté.
-     */
-    protected function isAuthenticated(): bool
-    {
-        return isset($_SESSION['auth']) && $_SESSION['auth'] === true;
-    }
+
 
     /**
-     * Vérifie si l’utilisateur est administrateur.
-     */
-    protected function isAdmin(): bool
-    {
-        return isset($_SESSION['role']) && $_SESSION['role'] === 'admin';
-    }
+ * Vérifie si l'utilisateur est admin
+ */
+protected function isAdmin(): bool
+{
+    return $this->hasRole(['admin', 'superadmin']);
+}
+/**
+ * Vérifie l'authentification de base Utilisateur connecte
+ */
+protected function isAuthenticated(): bool
+{
+    return !empty($_SESSION['user']) && 
+           !empty($_SESSION['auth']) && 
+           ($_SESSION['auth'] === true) &&
+           !empty($_SESSION['user']['is_active']);
+}
+
+
 
     /**
      * Redirige vers une autre page.
@@ -150,7 +169,223 @@ abstract class Controller
         return $_SESSION['csrf_token'] ?? '';
     }
 
+    function checkInternetConnection($host = 'www.google.com', $port = 80, $timeout = 5) {
+        $connected = @fsockopen($host, $port, $errno, $errstr, $timeout);
+        
+        if ($connected) {
+            fclose($connected);
+            return true;
+        }
+        
+        return false;
+    }
+
+    function checkInternetConnectionCurl($url = 'https://www.google.com', $timeout = 5) {
+        if (!function_exists('curl_init')) {
+            return false;
+        }
+        
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_NOBODY, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        
+        $result = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        
+        return ($httpCode >= 200 && $httpCode < 300);
+    }
+
+    function getFullBaseUrl() {
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $host = $_SERVER['HTTP_HOST'];
+        $port = $_SERVER['SERVER_PORT'];
+        $scriptDir = dirname($_SERVER['SCRIPT_NAME']);
+        
+        // Ajouter le port seulement si nécessaire (pas 80 pour http, pas 443 pour https)
+        if (($protocol === 'http' && $port != 80) || ($protocol === 'https' && $port != 443)) {
+            $host = $host . ':' . $port;
+        }
+        
+        $baseUrl = $protocol . '://' . $host . $scriptDir;
+        
+        return rtrim($baseUrl, '/');
+    }
+
+    function getDynamicBaseUrl() {
+        $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
+        $host = $_SERVER['HTTP_HOST'];
+        $path = rtrim(dirname($_SERVER['PHP_SELF']), '/\\');
+        
+        return $protocol . '://' . $host . $path;
+    }
+
+    function getBaseUrl() {
+    // Déterminer le protocole (http ou https)
+    $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || $_SERVER['SERVER_PORT'] == 443 ? 'https' : 'http';
+    
+    // Récupérer le nom d'hôte
+    $host = $_SERVER['HTTP_HOST'];
+    
+    // Récupérer le chemin du script (sans le fichier)
+    $scriptPath = dirname($_SERVER['SCRIPT_NAME']);
+    
+    // Construire l'URL de base
+    $baseUrl = $protocol . '://' . $host . $scriptPath;
+    //$baseUrl = $protocol . '://' . $host ;
+    
+    // Supprimer le dossier final s'il existe
+    return rtrim($baseUrl, 'public');
+}
+
+ 
     /**
+ * Vérifie si l'utilisateur est authentifié
+ * sinon redirige vers la page de connexion.
+ */
+protected function requireAuth(): void
+{
+    if (empty($_SESSION['auth']) || $_SESSION['auth'] !== true) {
+        $this->flash('error', 'Vous devez être connecté pour accéder à cette page.');
+        $this->redirect(Router::route('login'));
+        exit;
+    }
+}
+
+public function isConfirmMail(): bool{
+    return isset($_SESSION['user']) && isset($_SESSION['email_confirmed']) && ($_SESSION['email_confirmed'] === 1 )? true: false;
+}
+
+protected function requireMailConfirm(){
+    $this->requireAuth();
+    if(!$this->isConfirmMail()){
+       $this->flash('error', "Vous devez confirme votre email avant d'acceder a cette page."); 
+       $this->redirect(Router::route('waiting_confirmation_mail',['slug'=>$_SESSION['user']['slug']]));
+    }
+}
+
+/**
+ * Système de permissions avancé
+ */
+protected function requireRole(string|array $roles, bool $allowSuperAdmin = true): void
+{
+    // Vérifier l'authentification de base
+    if (!$this->isAuthenticated()) {
+        $this->flash('error', 'Vous devez être connecté pour accéder à cette page.');
+        $this->redirect(Router::route('login'));
+        exit;
+    }
+
+    // Normaliser les rôles
+    $allowedRoles = is_array($roles) ? $roles : [$roles];
+    
+    $userRole = $_SESSION['user']['role'] ?? null;
+    $isSuperAdmin = $_SESSION['user']['is_super_admin'] ?? false;
+    $isActive = $_SESSION['user']['is_active'] ?? false;
+    
+    // Vérifier si le compte est actif
+    if (!$isActive) {
+        $this->flash('error', 'Votre compte est désactivé. Contactez un administrateur.');
+        $this->redirect(Router::route('login'));
+        exit;
+    }
+    
+    // Les superadmins ont un accès complet si autorisé
+    if ($allowSuperAdmin && $isSuperAdmin) {
+        return;
+    }
+    
+    // Vérifier les permissions
+    if (!$this->hasRole($allowedRoles)) {
+        $this->handleAccessDenied($allowedRoles);
+        exit;
+    }
+}
+
+/**
+ * Vérifie si l'utilisateur a l'un des rôles requis
+ */
+protected function hasRole(array $roles): bool
+{
+    if(isset($_SESSION['user'])){
+        $userRole = $_SESSION['user']['role'] ?? null;
+    return in_array($userRole, $roles);
+    }
+    return false;
+    
+}
+
+/**
+ * Vérifie si l'utilisateur a exactement le rôle spécifié
+ */
+protected function hasExactRole(string $role): bool
+{
+    $userRole = $_SESSION['user']['role'] ?? null;
+    return $userRole === $role;
+}
+
+/**
+ * Vérifie si l'utilisateur est super admin
+ */
+protected function isSuperAdmin(): bool
+{
+    return ($_SESSION['user']['is_super_admin'] ?? false) === true;
+}
+
+
+
+/**
+ * Gère l'accès refusé
+ */
+protected function handleAccessDenied(array $requiredRoles = []): void
+{
+    $roleNames = [
+        'superadmin' => 'Super Administrateur',
+        'admin' => 'Administrateur', 
+        'manager' => 'Manager',
+        'staff' => 'Staff',
+        'user' => 'Utilisateur'
+    ];
+    
+    if (!empty($requiredRoles)) {
+        $requiredRolesText = array_map(fn($role) => $roleNames[$role] ?? $role, $requiredRoles);
+        $message = "Accès refusé : droits insuffisants. Rôle(s) requis : " . implode(', ', $requiredRolesText);
+    } else {
+        $message = "Accès refusé : droits insuffisants.";
+    }
+    
+    $this->flash('error', $message);
+    
+    // Redirection intelligente selon le contexte
+    if ($this->isAuthenticated()) {
+        $this->redirect(Router::route('dashboard_admin'));
+    } else {
+        $this->redirect(Router::route('login'));
+    }
+}
+
+
+
+/**
+ * Récupère le rôle de l'utilisateur connecté
+ */
+protected function getUserRole(): ?string
+{
+    return $_SESSION['user']['role'] ?? null;
+}
+
+/**
+ * Récupère les informations de l'utilisateur connecté
+ */
+protected function getCurrentUser(): ?array
+{
+    return $_SESSION['user'] ?? null;
+}
+
+
+
+   /**
      * Helper pour afficher un message flash
      */
     protected function flash(string $key, string $message): void
@@ -252,20 +487,20 @@ abstract class Controller
         if(empty($_SESSION['flash']) && empty($_SESSION['errors']) && empty($_SESSION['errorForms'])) return;
 
         if (!empty($_SESSION['flash'])) {
-             echo "<div id='toast-container-flask'></div>
+             echo "<div class='toastMessages'><div id='toast-container-flask'></div></div>
                 <script>
                     document.addEventListener('DOMContentLoaded', function() {
                         const container = document.getElementById('toast-container-flask');
                         const messages = " . json_encode($_SESSION['flash']) . ";
                         for (const type in messages) {
-                            const toast = document.createElement('div');
+                            const t = document.createElement('div');
                             toast.className = 'toast toast-' + type;
                             toast.textContent = messages[type];
-                            container.appendChild(toast);
-                            setTimeout(() => toast.classList.add('show'), 100);
+                            container.appendChild(t);
+                            setTimeout(() => t.classList.add('show'), 100);
                             setTimeout(() => {
-                                toast.classList.remove('show');
-                                setTimeout(() => toast.remove(), 500);
+                                t.classList.remove('show');
+                                setTimeout(() => t.remove(), 500);
                             }, 4000);
                         }
                     });
@@ -275,20 +510,20 @@ abstract class Controller
         }
         if (!empty($_SESSION['errors'])) {
              echo "<h1>errors</h1>";
-             echo "<div id='toast-container-errors'></div>
+             echo "<div class='toastMessages'><div id='toast-container-errors'></div></div>
                 <script>
                     document.addEventListener('DOMContentLoaded', function() {
                         const container = document.getElementById('toast-container-errors');
                         const messages = " . json_encode($_SESSION['errors']) . ";
                         for (const type in messages) {
-                            const toast = document.createElement('div');
+                            const te = document.createElement('div');
                             toast.className = 'toast toast-error toast-danger';
                             toast.textContent = messages[type];
-                            container.appendChild(toast);
-                            setTimeout(() => toast.classList.add('show'), 100);
+                            container.appendChild(te);
+                            setTimeout(() => te.classList.add('show'), 100);
                             setTimeout(() => {
-                                toast.classList.remove('show');
-                                setTimeout(() => toast.remove(), 500);
+                                te.classList.remove('show');
+                                setTimeout(() => te.remove(), 500);
                             }, 4000);
                         }
                     });
@@ -296,20 +531,20 @@ abstract class Controller
                 $this->clearErrors();
         }
         if (!empty($_SESSION['errorForms'])) {
-             echo "<div class='toast-container-errorForms'></div>
+             echo "<div class='toastMessages'><div class='toast-container-errorForms'></div></div>
                 <script>
                     document.addEventListener('DOMContentLoaded', function() {
                         const container = document.getElementById('toast-container-errorForms');
                         const messages = " . json_encode($_SESSION['errorForms']) . ";
                         for (const field in messages) {
-                            const toast = document.createElement('div');
+                            const tf = document.createElement('div');
                             toast.className = 'toast toast-error';
                             toast.textContent = 'field '+type + '  :  'messages[type];
-                            container.appendChild(toast);
-                            setTimeout(() => toast.classList.add('show'), 100);
+                            container.appendChild(tf);
+                            setTimeout(() => tf.classList.add('show'), 100);
                             setTimeout(() => {
-                                toast.classList.remove('show');
-                                setTimeout(() => toast.remove(), 1000);
+                                tf.classList.remove('show');
+                                setTimeout(() => tf.remove(), 1000);
                             }, 4000);
                         }
                     });
@@ -329,7 +564,7 @@ abstract class Controller
         if (empty($_SESSION['flash']) && empty($_SESSION['errors']) && empty($_SESSION['errorForms'])) return;
 
         if(!empty($_SESSION['flash'])){
-                 echo "<div id='toast-container-flash' class='toast-container position-fixed top-0 end-0 p-3' style='z-index: 1100;'></div>";
+                 echo "<div class='toastMessagesBootstrap'><div id='toast-container-flash' class='toast-container position-fixed top-0 end-0 p-3' style='z-index: 1100;'></div></div>";
             echo "<script>";
             echo "document.addEventListener('DOMContentLoaded', function() {";
             
@@ -346,13 +581,13 @@ abstract class Controller
                 $escapedMessage = addslashes($message);
                 
                 echo "
-                    const toast = document.createElement('div');
-                    toast.className = 'toast';
-                    toast.setAttribute('role', 'alert');
-                    toast.setAttribute('aria-live', 'assertive');
-                    toast.setAttribute('aria-atomic', 'true');
+                    const tbf = document.createElement('div');
+                    tbf.className = 'toast';
+                    tbf.setAttribute('role', 'alert');
+                    tbf.setAttribute('aria-live', 'assertive');
+                    tbf.setAttribute('aria-atomic', 'true');
                     
-                    toast.innerHTML = `
+                    tbf.innerHTML = `
                         <div class='toast-header'>
                             <i class='fas fa-{$config['icon']} text-{$config['class']} me-2'></i>
                             <strong class='me-auto'>{$config['title']}</strong>
@@ -363,12 +598,12 @@ abstract class Controller
                         </div>
                     `;
                     
-                    document.getElementById('toast-container-flash').appendChild(toast);
-                    const bsToast = new bootstrap.Toast(toast, { autohide: true, delay: 5000 });
+                    document.getElementById('toast-container-flash').appendChild(tbf);
+                    const bsToast = new bootstrap.Toast(tbf, { autohide: true, delay: 5000 });
                     bsToast.show();
                     
-                    toast.addEventListener('hidden.bs.toast', function() {
-                        toast.remove();
+                    tbf.addEventListener('hidden.bs.toast', function() {
+                        tbf.remove();
                     });
                 ";
             }
@@ -379,7 +614,7 @@ abstract class Controller
             $this->clearFlash();
         }
         if(!empty($_SESSION['errors'])){
-            echo "<div id='toast-container-errors' class='toast-container position-fixed top-0 end-0 p-3' style='z-index: 1100;'></div>";
+            echo "<div class='toastMessagesBootstrap'><div id='toast-container-errors' class='toast-container position-fixed top-0 end-0 p-3' style='z-index: 1100;'></div></div>";
             echo "<script>";
             echo "document.addEventListener('DOMContentLoaded', function() {";
             
@@ -391,13 +626,13 @@ abstract class Controller
                 $escapedMessage = addslashes($message);
                 
                 echo "
-                    const toast = document.createElement('div');
-                    toast.className = 'toast';
-                    toast.setAttribute('role', 'alert');
-                    toast.setAttribute('aria-live', 'assertive');
-                    toast.setAttribute('aria-atomic', 'true');
+                    const teb = document.createElement('div');
+                    teb.className = 'toast';
+                    teb.setAttribute('role', 'alert');
+                    teb.setAttribute('aria-live', 'assertive');
+                    teb.setAttribute('aria-atomic', 'true');
                     
-                    toast.innerHTML = `
+                    teb.innerHTML = `
                         <div class='toast-header'>
                             <i class='fas fa-{$config['icon']} text-{$config['class']} me-2'></i>
                             <strong class='me-auto'>{$config['title']}</strong>
@@ -409,11 +644,11 @@ abstract class Controller
                     `;
                     
                     document.getElementById('toast-container-errors').appendChild(toast);
-                    const bsToast = new bootstrap.Toast(toast, { autohide: true, delay: 5000 });
+                    const bsToast = new bootstrap.Toast(teb, { autohide: true, delay: 5000 });
                     bsToast.show();
                     
-                    toast.addEventListener('hidden.bs.toast', function() {
-                        toast.remove();
+                    teb.addEventListener('hidden.bs.toast', function() {
+                        teb.remove();
                     });
                 ";
             }
@@ -425,7 +660,7 @@ abstract class Controller
         }
 
          if(!empty($_SESSION['errorForms'])){
-            echo "<div id='toast-container-errorForms' class='toast-container position-fixed top-0 end-0 p-3' style='z-index: 1100;'></div>";
+            echo "<div class='toastMessagesBootstrap'><div id='toast-container-errorForms' class='toast-container position-fixed top-0 end-0 p-3' style='z-index: 1100;'></div></div>";
             echo "<script>";
             echo "document.addEventListener('DOMContentLoaded', function() {";
             
@@ -437,13 +672,13 @@ abstract class Controller
                 $escapedMessage = addslashes($message);
                 
                 echo "
-                    const toast = document.createElement('div');
-                    toast.className = 'toast';
-                    toast.setAttribute('role', 'alert');
-                    toast.setAttribute('aria-live', 'assertive');
-                    toast.setAttribute('aria-atomic', 'true');
+                    const tbe = document.createElement('div');
+                    tbe.className = 'toast';
+                    tbe.setAttribute('role', 'alert');
+                    tbe.setAttribute('aria-live', 'assertive');
+                    tbe.setAttribute('aria-atomic', 'true');
                     
-                    toast.innerHTML = `
+                    tbe.innerHTML = `
                         <div class='toast-header'>
                             <i class='fas fa-{$config['icon']} text-{$config['class']} me-2'></i>
                             <strong class='me-auto'>{$config['title']}</strong>
@@ -454,12 +689,12 @@ abstract class Controller
                         </div>
                     `;
                     
-                    document.getElementById('toast-container-errorForms').appendChild(toast);
+                    document.getElementById('toast-container-errorForms').appendChild(tbe);
                     const bsToast = new bootstrap.Toast(toast, { autohide: true, delay: 5000 });
                     bsToast.show();
                     
-                    toast.addEventListener('hidden.bs.toast', function() {
-                        toast.remove();
+                    tbe.addEventListener('hidden.bs.toast', function() {
+                        tbe.remove();
                     });
                 ";
             }
@@ -505,39 +740,20 @@ abstract class Controller
     }
     
 
-    /**
- * Vérifie si l'utilisateur est authentifié
- * sinon redirige vers la page de connexion.
- */
-protected function requireAuth(): void
-{
-    if (empty($_SESSION['auth']) || $_SESSION['auth'] !== true) {
-        $this->flash('error', 'Vous devez être connecté pour accéder à cette page.');
-        $this->redirect(Router::route('login'));
-        exit;
-    }
-}
 
-protected function requireRole(string $role): void
-{
-    if (empty($_SESSION['user']) || $_SESSION['user']['role'] !== $role || $_SESSION['auth'] !== true || $_SESSION['is_super_admin'] !== true) {
-        $this->flash('error', 'Accès refusé : droits insuffisants.');
-        $this->redirect(Router::route('index'));
-        exit;
-    }
-}
 
-public function isAjaxRequest(): bool
-{
-    return (
-        !empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
-        strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest'
-    );
-}
+
+    public function isAjaxRequest(): bool
+    {
+        return (
+            !empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
+            strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest'
+        );
+    }
 
     public function responseSuccess(string $message="",string $route='/'){
         if($this->isAjaxRequest()){
-            $response=['success' => true,'error'=>false, 'message' => $message,'route'=>$route];
+            $response=['success' => true, 'message' => $message,'route'=>$route];
             echo json_encode($response);
         }
         else{

@@ -62,18 +62,18 @@
 
   <!-- Message flash (type alertes statiques) -->
     <div class="flash-container">
-      <?php //$this->displayFlashMessages(); ?>
+      <?php //$this->requireMailConfirm(); ?>
     </div>
  <?= $content; ?>
     <?php //include INCLUDES.DIRECTORY_SEPARATOR."footer.php"; ?>
     <!-- Toasts (notifications temporaires) -->
-    <?php $this->displayToastMessages(); ?>
-    <?php //$this->displayToastMessagesBootstrap(); ?>
+    <?php // $this->displayToastMessages(); ?>
+    <?php $this->displayToastMessagesBootstrap(); ?>
 
   <a href="#" class="back-to-top d-flex align-items-center justify-content-center"><i class="bi bi-arrow-up-short"></i></a>
  
 
-<?php //include INCLUDES.DIRECTORY_SEPARATOR."vendor-js-file.php"; ?>
+<?php include INCLUDES.DIRECTORY_SEPARATOR."vendor-js-file.php"; ?>
 <!-- Zone de conteneur des notifications -->
 <div id="toast-container" class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 2000;"></div>
 
@@ -86,7 +86,7 @@
     </div>
   </div>
 </template>
-
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
   const container = document.getElementById('toast-container');
@@ -96,7 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
   /**
    * Affiche un toast Bootstrap stylé
    */
-  function showToast(message, type = 'info', delay = 5000) {
+  function showToast( type = 'info',message, delay = 5000) {
     const clone = template.content.cloneNode(true);
     const toastEl = clone.querySelector('.toast');
     const toastBody = clone.querySelector('.toast-body');

@@ -2,6 +2,7 @@
 <?php //$this->displayToastMessages(); ?>
 <div class="card shadow-sm border-0">
   <div class="card-header bg-<?=isset($testimonial) ? 'success':'primary';?> text-white d-flex justify-content-between align-items-center">
+    <pre><?//=print_r($project);?></pre>
     <h5 class="mb-0"><i class="bi bi-<?=isset($project) ? 'pencil':'folder-plus';?>"></i> <?=isset($project)? 'Modifier le Projet : <b>'.$project->slug."</b>":'Creer un Nouveau Projet';?></h5>
     <button class="btn btn-light btn-sm" id="backToList" data-url="<?= $Router::route('dashboard_project_list');?>">
       <i class="bi bi-arrow-left-circle"></i> Retour à la liste

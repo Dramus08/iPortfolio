@@ -1,0 +1,85 @@
+    /* --- Flash Messages classiques --- */
+    .flash-message {
+      padding: 12px 16px;
+      border-radius: 6px;
+      margin: 10px 0;
+      color: #fff;
+      font-weight: 500;
+      animation: fadeIn 0.4s ease;
+    }
+
+    .flash-success { background-color: #28a745; }
+    .flash-error { background-color: #dc3545; }
+    .flash-danger { background-color: #dc3545; }
+    .flash-warning { background-color: #ffc107; color: #222; }
+    .flash-info { background-color: #17a2b8; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* --- Toasts --- */
+    .toastMessages #toast-container,.toastMessages #toast-container-flask,.toastMessages #toast-container-errors,.toastMessages #toast-container-errorsForms {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 9999;
+    }
+
+    .toastMessages .toast {
+      background-color: #333;
+      color: #fff;
+      padding: 12px 18px;
+      border-radius: 8px;
+      margin-top: 10px;
+      opacity: 0;
+      transform: translateY(-20px);
+      transition: opacity 0.5s ease, transform 0.5s ease;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+
+    .toastMessages .toast-success { background: #28a745; }
+    .toastMessages .toast-error { background: #dc3545; }
+    .toastMessages .toast-danger { background: #dc3545; }
+    .toastMessages .toast-warning { background: #ffc107; color: #222; }
+    .toastMessages .toast-info { background: #17a2b8; }
+
+    .toastMessages .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+
+    /* --- Toasts Bootstrap--- */
+    .toastMessagesBootstrap #toast-container {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 9999;
+    }
+
+    .toastMessagesBootstrap .toast {
+      background-color: #333;
+      color: #fff;
+      padding: 12px 18px;
+      border-radius: 8px;
+      margin-top: 10px;
+      opacity: 0;
+      transform: translateY(-20px);
+      transition: opacity 0.5s ease, transform 0.5s ease;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+
+    .toastMessagesBootstrap .toast-success { background: #28a745; }
+    .toastMessagesBootstrap .toast-error { background: #dc3545; }
+    .toastMessagesBootstrap .toast-danger { background: #dc3545; }
+    .toastMessagesBootstrap .toast-warning { background: #ffc107; color: #222; }
+    .toastMessagesBootstrap .toast-info { background: #17a2b8; }
+
+    .toastMessagesBootstrap .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+

@@ -153,6 +153,7 @@ class DataValidator
         $value = $this->data[$field] ?? null;
         if ($this->is_unique($field,$value)) { // Exemple pour test
             $this->errors[$field] = "La valeur '{$value}' du champ <strong>{$field}</strong> existe déjà.";
+            echo "La valeur '{$value}' du champ <strong>{$field}</strong> existe déjà.";
         }else{
             $this->data[$field]=htmlspecialchars($this->data[$field]);
         }
@@ -211,11 +212,12 @@ class DataValidator
 
     protected function validateInteger(string $field): void
     {
-        if (isset($this->data[$field]) && !filter_var($this->data[$field], FILTER_VALIDATE_INT)) {
+        if (isset($this->data[$field]) && !filter_var($this->data[$field], FILTER_VALIDATE_INT) ) {
             $this->errors[$field] = "Le champ <strong>{$field}</strong> doit être un entier valide.";
-        }else{
+        }elseif (isset($this->data[$field]) && $this->data[$field]=== 0){$this->data[$field]=htmlspecialchars($this->data[$field]);}
+        else{
             if(isset($this->data[$field])){
-                 $this->data[$field]=htmlspecialchars($this->data[$field]);
+                 $this->data[$field]=(int)htmlspecialchars($this->data[$field]);
             }
         }
     }

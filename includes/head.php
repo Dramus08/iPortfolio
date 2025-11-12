@@ -10,4 +10,6 @@
 
     <!-- Lightbox CSS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.3/css/lightbox.min.css">
+
+    <link rel="stylesheet" href="<?=ASSETS."css/toast.css";?>">
     

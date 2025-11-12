@@ -8,6 +8,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Font Awesome pour les icônes -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="<?=ASSETS."css/toast.css";?>">
 
 </head>
 <body>
@@ -229,59 +230,9 @@
     }
 </style>
 
-<style>
-    /* --- Flash Messages classiques --- */
-    .flash-message {
-      padding: 12px 16px;
-      border-radius: 6px;
-      margin: 10px 0;
-      color: #fff;
-      font-weight: 500;
-      animation: fadeIn 0.4s ease;
-    }
-    .flash-success { background-color: #28a745; }
-    .flash-error { background-color: #dc3545; }
-    .flash-warning { background-color: #ffc107; color: #222; }
-    .flash-info { background-color: #17a2b8; }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(-10px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    /* --- Toasts --- */
-    #toast-container {
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      z-index: 9999;
-    }
-
-    .toast {
-      background-color: #333;
-      color: #fff;
-      padding: 12px 18px;
-      border-radius: 8px;
-      margin-top: 10px;
-      opacity: 0;
-      transform: translateY(-20px);
-      transition: opacity 0.5s ease, transform 0.5s ease;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-    }
-
-    .toast-success { background: #28a745; }
-    .toast-error { background: #dc3545; }
-    .toast-warning { background: #ffc107; color: #222; }
-    .toast-info { background: #17a2b8; }
-
-    .toast.show {
-      opacity: 1;
-      transform: translateY(0);
-    }
-</style>
 
  <!-- Page d'inscription -->
-<div id="register-page" class="auth-container">
+<div id="register-page" class="auth-container" style="">
     <div class="auth-header">
         <h2><i class="fas fa-user-plus me-2"></i>Inscription</h2>
         <p class="mb-0">Créez votre compte</p>
@@ -369,6 +320,8 @@
 
 <!-- Bootstrap JS avec Popper -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="<?=ASSETS."js/toast.js";?>"></script>
+
 
 <script>
     // Éléments DOM

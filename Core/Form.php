@@ -301,25 +301,3 @@ class Form {
 
 }
 
-
-*/
-// Exemple de description de table
-/*
-$tableDescription = [
-    ['name' => 'first_name', 'type' => 'varchar', 'notnull' => 1],
-    ['name' => 'last_name', 'type' => 'varchar', 'notnull' => 0],
-    ['name' => 'email', 'type' => 'varchar', 'notnull' => 1],
-    ['name' => 'age', 'type' => 'int', 'notnull' => 0],
-    ['name' => 'bio', 'type' => 'text', 'notnull' => 0],
-    ['name' => 'gender', 'type' => 'radio', 'notnull' => 1],
-    ['name' => 'hobbies', 'type' => 'checkbox', 'notnull' => 0],
-    ['name' => 'birthdate', 'type' => 'date', 'notnull' => 1]
-];
-
-// Exemple d'options de champs
-$fieldOptions = [
-    'gender' => ['options' => ['1' => 'Male', '2' => 'Female']],
-    'hobbies' => ['options' => ['1' => 'Reading', '2' => 'Traveling']],
-    'age' => ['min' => 0, 'max' => 120],
-];
-*/

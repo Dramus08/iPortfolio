@@ -66,4 +66,8 @@ class Router
         header("Location: {$route}");
         exit();
     }
+
+    public static function getRoutes(): array{
+        return self::$namedRoutes;
+    }
 }

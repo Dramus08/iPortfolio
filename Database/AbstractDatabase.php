@@ -96,7 +96,7 @@ abstract class AbstractDatabase
     /**
         * ⚠️ Méthode centralisée pour gérer toutes les erreurs PDO
     */
-    protected function handlePDOError(PDOException $e, string $sql = '', array $params = []): stdClass
+    protected function handlePDOError(PDOException $e, string $sql = '', array $params = []): ?stdClass
     {
         $errorCode = (int)($e->errorInfo[1] ?? 0);
         $errorMsg  = $e->getMessage();
@@ -170,6 +170,23 @@ abstract class AbstractDatabase
             ]);
         }
     }
+
+        public function rollBack(){
+        $this->connection->rollBack();
+    }
+
+    public function commit(){
+        $this->connection->commit();
+    }
+
+    public function beginTransaction(){
+        $this->connection->beginTransaction();
+    }
+
+     public function getLastInsertId(){
+        $this->connection->lastInsertId();
+    }
+
 }
 
 

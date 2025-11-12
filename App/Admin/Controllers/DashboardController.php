@@ -67,6 +67,19 @@ class DashboardController extends Controller
         return $this->render('dashboard/dashboard', ['users' => $users,'Router' => Router::class]);
     }
 
+     public function home()
+    {
+        //$this->requireRole('superadmin');
+        if($this->isAdmin()){
+            $users = (new User())->all();
+            return $this->render('dashboard/dashboard', ['users' => $users,'Router' => Router::class]);
+        }
+        $message = "Accès refusé : droits insuffisants.";
+        $this->flash("error", $message);
+        $this->redirect(Router::route('index'));
+        
+    }
+
 
     public function create()
     {

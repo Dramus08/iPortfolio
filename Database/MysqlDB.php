@@ -12,7 +12,7 @@ use Validators\DataValidator;
 /**
  * Gestion de la base de données MySQL avec gestion d’erreurs, logs et réponses normalisées.
  */
-class MysqlDatabase extends AbstractDatabase
+class MysqlDB extends AbstractDatabase
 {
     // Le trait est déjà inclus dans AbstractDatabase, pas besoin de le réimporter ici.
     // use DatabaseHelperTrait;
@@ -304,7 +304,7 @@ class MysqlDatabase extends AbstractDatabase
     /**
      * Gestion centralisée de l’upload.
      */
-    private static function uploadFile($table,$file, $destination)
+    protected static function uploadFile($table,$file, $destination)
     {
         if (!is_dir($destination)) {
             mkdir($destination, 0777, true);

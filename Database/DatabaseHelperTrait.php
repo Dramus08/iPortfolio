@@ -42,7 +42,7 @@ trait DatabaseHelperTrait
     public function setResponse(
         bool $success = true,
         string $message = '',
-        array $dataOrError = []): stdClass {
+        array $dataOrError = []):?stdClass  {
 
         if ($success) {
             $this->data = $dataOrError;
@@ -177,7 +177,7 @@ trait DatabaseHelperTrait
         int $httpCode = 200,
         bool $exitAfter = true
     ): string {
-        $this->setResponse($success, $message, $data, $errors);
+        $this->setResponse($success, $message, $data ?? $errors);
 
         if (!$success) {
             // Si c’est une erreur, ajuster le code HTTP automatiquement
