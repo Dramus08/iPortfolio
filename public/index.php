@@ -46,6 +46,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$csrf->verifyToken($token)) {
     $router->get('/', 'Admin\Controllers\HomeController@index','index');
     $router->get('/home', 'Admin\Controllers\HomeController@home','home');
 
+    $router->get('/brouillon', 'Admin\Controllers\BrouillonController@brouillon','brouillon');
+
     /* Les Differents urls pour la gestion des utilisateurs  */ 
 
     $router->get('/users', 'Admin\Controllers\UserController@index', 'user_list');

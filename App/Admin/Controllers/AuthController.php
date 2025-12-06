@@ -306,7 +306,7 @@ class AuthController extends Controller
 
 
 
-        public function showChangePasswordForm(string $slug)
+    public function showChangePasswordForm(string $slug)
     {
         // Vérifier que l'utilisateur est connecté
             $this->requireAuth();
